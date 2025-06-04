@@ -755,8 +755,8 @@ def validate_search_term(search_term):
     """
     if not search_term:
         return True
-    # Allow letters, numbers, spaces, hyphens, and forward slashes
-    return bool(re.match(r'^[A-Za-z0-9\s\-/]+$', search_term))
+    # Allow only letters, numbers, spaces, and hyphens
+    return bool(re.match(r'^[A-Za-z0-9\s\-]+$', search_term))
 
 @app.route('/', methods=['GET'])
 def search():
