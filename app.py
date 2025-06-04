@@ -708,7 +708,7 @@ def validate_search_term(search_term):
     if not search_term:
         return True, None
     
-    # First check if it's an SNF/ format search
+    # Only validate SNF/ format searches
     if search_term.upper().startswith('SNF/'):
         try:
             # Split by '/' and check both parts
@@ -730,10 +730,7 @@ def validate_search_term(search_term):
             logger.error(f"Error validating SNF format: {str(e)}")
             return False, "Invalid SNF format. Please use format: SNF/number (e.g., SNF/251)"
     
-    # For all other searches (associate name, receiver name, etc.)
-    if not bool(re.match(r'^[A-Za-z0-9\s\-]+$', search_term)):
-        return False, "Invalid search term. Please use only letters (A-Z), numbers (0-9), spaces, and hyphens (-)"
-    
+    # For all other searches, allow any characters
     return True, None
 
 @app.route('/', methods=['GET'])
@@ -755,15 +752,6 @@ def search():
                                             search_term='',
                                             search_type=search_type,
                                             error=validation_error)
-        else:
-            # For non-SNF searches, validate normally
-            is_valid, validation_error = validate_search_term(search_term)
-            if not is_valid:
-                return render_template_string(HTML_TEMPLATE, 
-                                            results=None, 
-                                            search_term='',
-                                            search_type=search_type,
-                                            error=validation_error)
         
         results = None
         if search_term:
@@ -777,23 +765,23 @@ def search():
                     if search_term.upper().startswith('SNF/'):
                         match = search_term.upper() == rec['set_no'].upper()
                     else:
-                        # Regular search in all fields
-                        match = (search_lower in rec['associate_name'].lower() or
-                                search_lower in rec['associate_id'].lower() or
-                                search_lower in rec['receiver_name'].lower() or
-                                search_lower in rec['set_no'].lower() or
-                                search_term == rec['line_no'])
+                        # Regular search in all fields - now case-insensitive
+                        match = (search_lower in str(rec['associate_name']).lower() or
+                                search_lower in str(rec['associate_id']).lower() or
+                                search_lower in str(rec['receiver_name']).lower() or
+                                search_lower in str(rec['set_no']).lower() or
+                                search_term == str(rec['line_no']))
                 elif search_type == 'associate_name':
-                    match = search_lower in rec['associate_name'].lower()
+                    match = search_lower in str(rec['associate_name']).lower()
                 elif search_type == 'associate_id':
-                    match = search_lower in rec['associate_id'].lower()
+                    match = search_lower in str(rec['associate_id']).lower()
                 elif search_type == 'receiver_name':
-                    match = search_lower in rec['receiver_name'].lower()
+                    match = search_lower in str(rec['receiver_name']).lower()
                 elif search_type == 'set_no':
                     # Always use exact match for set_no searches
-                    match = search_term.upper() == rec['set_no'].upper()
+                    match = search_term.upper() == str(rec['set_no']).upper()
                 elif search_type == 'line_no':
-                    match = search_term == rec['line_no']
+                    match = search_term == str(rec['line_no'])
                 
                 if match:
                     results.append(rec)
