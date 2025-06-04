@@ -741,11 +741,18 @@ def search():
         search_type = request.args.get('search_type', 'all')  # Default to 'all'
         error = None
         
-        if search_term and not validate_search_term(search_term):
-            if search_term.upper().startswith('SNF/'):
+        # First check if it's an SNF/ format search
+        if search_term.upper().startswith('SNF/'):
+            if not validate_search_term(search_term):
                 error = "Invalid SNF format. Please use format: SNF/number (e.g., SNF/251). Only numbers are allowed after SNF/."
-            else:
-                error = "Invalid search term. Please use only letters, numbers, spaces, and hyphens"
+                return render_template_string(HTML_TEMPLATE, 
+                                            results=None, 
+                                            search_term='',
+                                            search_type=search_type,
+                                            error=error)
+        # Then check other search terms
+        elif search_term and not validate_search_term(search_term):
+            error = "Invalid search term. Please use only letters, numbers, spaces, and hyphens"
             return render_template_string(HTML_TEMPLATE, 
                                         results=None, 
                                         search_term='',
