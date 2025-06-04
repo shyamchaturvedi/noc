@@ -708,7 +708,7 @@ def validate_search_term(search_term):
     if not search_term:
         return True, None
     
-    # Special case for SNF/ format
+    # First check if it's an SNF/ format search
     if search_term.upper().startswith('SNF/'):
         try:
             # Split by '/' and check both parts
@@ -720,16 +720,17 @@ def validate_search_term(search_term):
             if parts[0].upper() != 'SNF':
                 return False, "Invalid SNF format. Please use format: SNF/number (e.g., SNF/251)"
             
-            # Second part must be a number
+            # Second part must be a number and not empty
             number_part = parts[1].strip()
-            if not number_part.isdigit():
+            if not number_part or not number_part.isdigit():
                 return False, "Invalid SNF format. Only numbers are allowed after SNF/ (e.g., SNF/251)"
             
             return True, None
-        except:
+        except Exception as e:
+            logger.error(f"Error validating SNF format: {str(e)}")
             return False, "Invalid SNF format. Please use format: SNF/number (e.g., SNF/251)"
     
-    # For associate name, receiver name, and other text searches
+    # For all other searches (associate name, receiver name, etc.)
     if not bool(re.match(r'^[A-Za-z0-9\s\-]+$', search_term)):
         return False, "Invalid search term. Please use only letters (A-Z), numbers (0-9), spaces, and hyphens (-)"
     
@@ -746,15 +747,23 @@ def search():
         # If search term starts with SNF/, force search_type to 'set_no'
         if search_term.upper().startswith('SNF/'):
             search_type = 'set_no'
-        
-        # Validate search term
-        is_valid, validation_error = validate_search_term(search_term)
-        if not is_valid:
-            return render_template_string(HTML_TEMPLATE, 
-                                        results=None, 
-                                        search_term='',
-                                        search_type=search_type,
-                                        error=validation_error)
+            # Validate SNF format first
+            is_valid, validation_error = validate_search_term(search_term)
+            if not is_valid:
+                return render_template_string(HTML_TEMPLATE, 
+                                            results=None, 
+                                            search_term='',
+                                            search_type=search_type,
+                                            error=validation_error)
+        else:
+            # For non-SNF searches, validate normally
+            is_valid, validation_error = validate_search_term(search_term)
+            if not is_valid:
+                return render_template_string(HTML_TEMPLATE, 
+                                            results=None, 
+                                            search_term='',
+                                            search_type=search_type,
+                                            error=validation_error)
         
         results = None
         if search_term:
