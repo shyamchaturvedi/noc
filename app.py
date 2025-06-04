@@ -743,6 +743,10 @@ def search():
         search_type = request.args.get('search_type', 'all')  # Default to 'all'
         error = None
         
+        # If search term starts with SNF/, force search_type to 'set_no'
+        if search_term.upper().startswith('SNF/'):
+            search_type = 'set_no'
+        
         # Validate search term
         is_valid, validation_error = validate_search_term(search_term)
         if not is_valid:
@@ -777,10 +781,8 @@ def search():
                 elif search_type == 'receiver_name':
                     match = search_lower in rec['receiver_name'].lower()
                 elif search_type == 'set_no':
-                    if search_term.upper().startswith('SNF/'):
-                        match = search_term.upper() == rec['set_no'].upper()
-                    else:
-                        match = search_term.upper() == rec['set_no'].upper()
+                    # Always use exact match for set_no searches
+                    match = search_term.upper() == rec['set_no'].upper()
                 elif search_type == 'line_no':
                     match = search_term == rec['line_no']
                 
