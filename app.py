@@ -42,56 +42,46 @@ class DataError(Exception):
     pass
 
 def load_data(file_path):
-    """Load and validate data from the specified file.
-    
-    Args:
-        file_path (str): Path to the data file
-        
-    Returns:
-        list: List of dictionaries containing the records
-        
-    Raises:
-        DataError: If file cannot be loaded or data is invalid
-    """
+    """Load and validate data from the specified file."""
     try:
         if not os.path.exists(file_path):
             raise DataError(f"Data file not found: {file_path}")
-            
-    data = []
-    with open(file_path, 'r', encoding='utf-8') as f:
-        lines = f.readlines()
+        
+        data = []
+        with open(file_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
             if len(lines) < 2:  # Need at least header + 1 data row
                 raise DataError("Data file is empty or missing header")
-                
+            
             for line_num, line in enumerate(lines[1:], 2):  # skip header
                 try:
-            parts = line.strip().split('\t')
+                    parts = line.strip().split('\t')
                     if len(parts) < 6:
                         logger.warning(f"Invalid data format at line {line_num}")
                         continue
-                        
-                record = {
+                    
+                    record = {
                         "associate_name": parts[0].strip(),
                         "associate_id": parts[1].strip(),
                         "receiver_name": parts[2].strip(),
                         "form_status": parts[3].strip(),
                         "line_no": parts[4].strip(),
                         "set_no": parts[5].strip()
-                }
-                data.append(record)
+                    }
+                    data.append(record)
                 except Exception as e:
                     logger.error(f"Error processing line {line_num}: {str(e)}")
                     continue
-                    
+        
         logger.info(f"Successfully loaded {len(data)} records")
-    return data
+        return data
     except Exception as e:
         logger.error(f"Failed to load data: {str(e)}")
         raise DataError(f"Failed to load data: {str(e)}")
 
 # Load data once when app starts
 try:
-data = load_data('data.txt')
+    data = load_data('data.txt')
 except DataError as e:
     logger.error(f"Critical error loading data: {str(e)}")
     data = []
@@ -664,17 +654,17 @@ HTML_TEMPLATE = '''
                         <i class="fas fa-search"></i>
                         <input type="text" 
                                name="search" 
-                               placeholder="Enter search term..." 
+                               placeholder="Search by name, ID, or Set No..." 
                                value="{{ search_term }}"
-                               pattern="[A-Za-z0-9\s\-/]+"
-                               title="Please enter only letters, numbers, spaces, hyphens, and forward slashes (/)"
+                               pattern="[A-Za-z0-9\s\-]+"
+                               title="Please enter only letters, numbers, spaces, and hyphens"
                                required />
                     </div>
                 </div>
                 <button type="submit" class="btn btn-primary">
                     <i class="fas fa-search"></i> Search
                 </button>
-</form>
+            </form>
         </div>
 
 {% if results is not none %}
@@ -770,26 +760,22 @@ def validate_search_term(search_term):
 
 @app.route('/', methods=['GET'])
 def search():
-    """Handle search requests.
-    
-    Returns:
-        str: Rendered HTML template with search results
-    """
+    """Handle search requests."""
     try:
         search_term = request.args.get('search', '').strip()
         search_type = request.args.get('search_type', 'all')  # Default to 'all'
         error = None
         
         if search_term and not validate_search_term(search_term):
-            error = "Invalid search term. Please use only letters, numbers, spaces, hyphens, and forward slashes (/)"
+            error = "Invalid search term. Please use only letters, numbers, spaces, and hyphens"
             return render_template_string(HTML_TEMPLATE, 
                                         results=None, 
                                         search_term='',
                                         search_type=search_type,
                                         error=error)
         
-    results = None
-    if search_term:
+        results = None
+        if search_term:
             search_lower = search_term.lower()
             results = []
             
@@ -817,7 +803,7 @@ def search():
                     results.append(rec)
             
             logger.info(f"Search for '{search_term}' in {search_type} returned {len(results)} results")
-            
+        
         # Add current date and time for print header
         print_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
@@ -827,7 +813,6 @@ def search():
                                     search_type=search_type,
                                     error=error,
                                     print_date=print_date)
-                                    
     except Exception as e:
         logger.error(f"Error processing search request: {str(e)}")
         return render_template_string(HTML_TEMPLATE,
