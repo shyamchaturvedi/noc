@@ -708,12 +708,25 @@ def validate_search_term(search_term):
     if not search_term:
         return True
     
-    # Special case for SNF/251 format
+    # Special case for SNF/ format
     if search_term.upper().startswith('SNF/'):
+        # Check if the format is exactly SNF/number
         try:
-            # Check if the part after SNF/ is a valid number
-            number_part = search_term[4:].strip()
-            return number_part.isdigit()
+            # Split by '/' and check both parts
+            parts = search_term.split('/')
+            if len(parts) != 2:
+                return False
+            
+            # First part must be exactly "SNF" (case insensitive)
+            if parts[0].upper() != 'SNF':
+                return False
+            
+            # Second part must be a number
+            number_part = parts[1].strip()
+            if not number_part.isdigit():
+                return False
+            
+            return True
         except:
             return False
     
@@ -730,7 +743,7 @@ def search():
         
         if search_term and not validate_search_term(search_term):
             if search_term.upper().startswith('SNF/'):
-                error = "Invalid SNF format. Please use format: SNF/number (e.g., SNF/251)"
+                error = "Invalid SNF format. Please use format: SNF/number (e.g., SNF/251). Only numbers are allowed after SNF/."
             else:
                 error = "Invalid search term. Please use only letters, numbers, spaces, and hyphens"
             return render_template_string(HTML_TEMPLATE, 
