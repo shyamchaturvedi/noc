@@ -387,23 +387,32 @@ HTML_TEMPLATE = '''
                 padding: 0;
             }
 
-            .header {
-                box-shadow: none;
-                border-bottom: 2px solid var(--border-color);
-                margin-bottom: 1rem;
+            .header, .results-header {
+                display: none !important;  /* Hide both header and results header */
             }
 
-            .button-group, .search-container, .action-buttons {
-                display: none;
+            .search-container, .action-buttons {
+                display: none !important;
             }
 
             .table-container {
                 box-shadow: none;
+                margin-top: 0;
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
             }
 
             th {
                 background-color: white !important;
                 color: black !important;
+                border-bottom: 2px solid var(--border-color) !important;
+            }
+
+            td {
+                border-bottom: 1px solid var(--border-color) !important;
             }
 
             .highlight-row {
@@ -412,6 +421,16 @@ HTML_TEMPLATE = '''
 
             .status-badge, .location-badge {
                 border: 1px solid var(--border-color);
+            }
+
+            /* Add page title for print */
+            .table-container::before {
+                content: "Search Results";
+                display: block;
+                font-size: 1.5rem;
+                font-weight: 600;
+                margin-bottom: 1rem;
+                color: black;
             }
         }
 
