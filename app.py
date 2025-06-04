@@ -706,32 +706,34 @@ HTML_TEMPLATE = '''
 def validate_search_term(search_term):
     """Validate the search term."""
     if not search_term:
-        return True
+        return True, None
     
     # Special case for SNF/ format
     if search_term.upper().startswith('SNF/'):
-        # Check if the format is exactly SNF/number
         try:
             # Split by '/' and check both parts
             parts = search_term.split('/')
             if len(parts) != 2:
-                return False
+                return False, "Invalid SNF format. Please use format: SNF/number (e.g., SNF/251)"
             
             # First part must be exactly "SNF" (case insensitive)
             if parts[0].upper() != 'SNF':
-                return False
+                return False, "Invalid SNF format. Please use format: SNF/number (e.g., SNF/251)"
             
             # Second part must be a number
             number_part = parts[1].strip()
             if not number_part.isdigit():
-                return False
+                return False, "Invalid SNF format. Only numbers are allowed after SNF/ (e.g., SNF/251)"
             
-            return True
+            return True, None
         except:
-            return False
+            return False, "Invalid SNF format. Please use format: SNF/number (e.g., SNF/251)"
     
-    # Allow only letters, numbers, spaces, and hyphens for other searches
-    return bool(re.match(r'^[A-Za-z0-9\s\-]+$', search_term))
+    # For associate name, receiver name, and other text searches
+    if not bool(re.match(r'^[A-Za-z0-9\s\-]+$', search_term)):
+        return False, "Invalid search term. Please use only letters (A-Z), numbers (0-9), spaces, and hyphens (-)"
+    
+    return True, None
 
 @app.route('/', methods=['GET'])
 def search():
@@ -741,23 +743,14 @@ def search():
         search_type = request.args.get('search_type', 'all')  # Default to 'all'
         error = None
         
-        # First check if it's an SNF/ format search
-        if search_term.upper().startswith('SNF/'):
-            if not validate_search_term(search_term):
-                error = "Invalid SNF format. Please use format: SNF/number (e.g., SNF/251). Only numbers are allowed after SNF/."
-                return render_template_string(HTML_TEMPLATE, 
-                                            results=None, 
-                                            search_term='',
-                                            search_type=search_type,
-                                            error=error)
-        # Then check other search terms
-        elif search_term and not validate_search_term(search_term):
-            error = "Invalid search term. Please use only letters, numbers, spaces, and hyphens"
+        # Validate search term
+        is_valid, validation_error = validate_search_term(search_term)
+        if not is_valid:
             return render_template_string(HTML_TEMPLATE, 
                                         results=None, 
                                         search_term='',
                                         search_type=search_type,
-                                        error=error)
+                                        error=validation_error)
         
         results = None
         if search_term:
