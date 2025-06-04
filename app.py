@@ -380,8 +380,8 @@ HTML_TEMPLATE = '''
 
         @media print {
             @page {
-                size: A4;
-                margin: 1cm;
+                size: A4 portrait;
+                margin: 0.5cm;
             }
 
             body {
@@ -389,6 +389,7 @@ HTML_TEMPLATE = '''
                 width: 100%;
                 margin: 0;
                 padding: 0;
+                font-size: 8pt;
             }
 
             .container {
@@ -417,32 +418,35 @@ HTML_TEMPLATE = '''
                 border-collapse: collapse;
                 width: 100%;
                 table-layout: fixed;
-                font-size: 9pt;
+                font-size: 8pt;
+                line-height: 1.2;
             }
 
-            /* Set column widths for A4 */
-            th:nth-child(1), td:nth-child(1) { width: 25%; } /* Associate Name */
-            th:nth-child(2), td:nth-child(2) { width: 15%; } /* Associate ID */
-            th:nth-child(3), td:nth-child(3) { width: 25%; } /* Receiver's Name */
-            th:nth-child(4), td:nth-child(4) { width: 15%; } /* Form Status */
-            th:nth-child(5), td:nth-child(5) { width: 20%; } /* Location */
+            /* Optimize column widths for A4 */
+            th:nth-child(1), td:nth-child(1) { width: 22%; } /* Associate Name */
+            th:nth-child(2), td:nth-child(2) { width: 12%; } /* Associate ID */
+            th:nth-child(3), td:nth-child(3) { width: 22%; } /* Receiver's Name */
+            th:nth-child(4), td:nth-child(4) { width: 12%; } /* Form Status */
+            th:nth-child(5), td:nth-child(5) { width: 32%; } /* Location */
 
             th {
                 background-color: white !important;
                 color: black !important;
-                border-bottom: 2px solid var(--border-color) !important;
-                padding: 8px 4px;
+                border-bottom: 1px solid #000 !important;
+                padding: 4px 2px;
                 font-weight: 600;
                 white-space: nowrap;
                 overflow: hidden;
                 text-overflow: ellipsis;
+                font-size: 8pt;
             }
 
             td {
-                border-bottom: 1px solid var(--border-color) !important;
-                padding: 6px 4px;
+                border-bottom: 1px solid #ccc !important;
+                padding: 3px 2px;
                 vertical-align: top;
                 word-wrap: break-word;
+                font-size: 8pt;
             }
 
             .highlight-row {
@@ -450,30 +454,37 @@ HTML_TEMPLATE = '''
             }
 
             .status-badge {
-                padding: 2px 6px;
-                font-size: 8pt;
+                padding: 1px 4px;
+                font-size: 7pt;
                 white-space: nowrap;
+                border: 0.5px solid #ccc;
+                display: inline-block;
+                min-width: 60px;
+                text-align: center;
             }
 
             .location-info {
                 display: flex;
-                flex-direction: column;
-                gap: 2px;
+                flex-direction: row;
+                gap: 4px;
+                flex-wrap: wrap;
             }
 
             .location-badge {
-                padding: 2px 4px;
-                font-size: 8pt;
+                padding: 1px 3px;
+                font-size: 7pt;
                 white-space: nowrap;
+                border: 0.5px solid #ccc;
+                display: inline-block;
             }
 
-            /* Add page title for print */
+            /* Compact title for print */
             .table-container::before {
                 content: "Search Results";
                 display: block;
-                font-size: 12pt;
+                font-size: 10pt;
                 font-weight: 600;
-                margin-bottom: 8px;
+                margin-bottom: 4px;
                 color: black;
             }
 
@@ -482,10 +493,31 @@ HTML_TEMPLATE = '''
                 display: table-header-group;
             }
 
+            /* Remove icons in print */
+            .location-badge i,
+            .status-badge i {
+                display: none;
+            }
+
+            /* Compact the location badges */
+            .location-badge {
+                margin: 0;
+                padding: 1px 3px;
+            }
+
+            .line-no-badge::before {
+                content: "L: ";
+            }
+
+            .set-no-badge::before {
+                content: "S: ";
+            }
+
             /* Add page number */
             @page {
                 @bottom-center {
                     content: counter(page);
+                    font-size: 8pt;
                 }
             }
         }
