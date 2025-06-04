@@ -626,8 +626,6 @@ HTML_TEMPLATE = '''
                                name="search" 
                                placeholder="Search by name, ID, or Set No..." 
                                value="{{ search_term }}"
-                               pattern="[A-Za-z0-9\s\-]+"
-                               title="Please enter only letters, numbers, spaces, and hyphens"
                                required />
                     </div>
                 </div>
