@@ -513,6 +513,25 @@ HTML_TEMPLATE = '''
                 content: "S: ";
             }
 
+            /* Add notice section after table */
+            .table-container::after {
+                content: "⚠️ Agar koi form nikalta hai aur galat number par wapas rakhta hai to uski zimmedari us vyakti ki hogi.\A\A 🛑 Unauthorized access ya mixing strictly prohibited.\A\A 📌 By Order: SHREYA GROUP | NOC Management Team";
+                display: block;
+                margin-top: 1cm;
+                padding: 0.5cm;
+                border: 1px solid #000;
+                font-size: 9pt;
+                line-height: 1.4;
+                white-space: pre-line;
+                text-align: center;
+                page-break-inside: avoid;
+            }
+
+            /* Ensure notice stays with table */
+            .table-container {
+                page-break-after: avoid;
+            }
+
             /* Add page number */
             @page {
                 @bottom-center {
