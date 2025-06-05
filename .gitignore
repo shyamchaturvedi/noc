@@ -37,6 +37,7 @@ ENV/
 # Logs
 logs/
 *.log
+app.log*
 *.log.*
 
 # Local development
@@ -48,13 +49,16 @@ instance/
 *.sqlite3
 
 # Excel files
-~$*.xlsx  # Temporary Excel files
-*.xls     # Old Excel format
-# Keep data.xlsx as it's needed for the application
+~$*.xlsx
+~$*.xls
+*.xlsx.bak
+*.xls.bak
+
+# Keep specific Excel files
 !data.xlsx
 
-# Text files
-*.txt
-# Keep specific text files if needed
-!requirements.txt
-!README.md
+# Temporary files
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
