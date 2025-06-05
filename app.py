@@ -625,6 +625,49 @@ HTML_TEMPLATE = '''
                 min-width: 800px;
             }
         }
+
+        /* Add sorting styles */
+        th {
+            position: relative;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        th:hover {
+            background-color: #e5e7eb;
+        }
+
+        th.sort-asc::after {
+            content: ' ▲';
+            font-size: 0.8em;
+            color: #2563eb;
+        }
+
+        th.sort-desc::after {
+            content: ' ▼';
+            font-size: 0.8em;
+            color: #2563eb;
+        }
+
+        /* Add tooltip to show sort direction */
+        th[title] {
+            position: relative;
+        }
+
+        th[title]:hover::before {
+            content: attr(title);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 4px 8px;
+            background-color: #1f2937;
+            color: white;
+            font-size: 12px;
+            border-radius: 4px;
+            white-space: nowrap;
+            z-index: 1000;
+        }
 </style>
     <script>
     // Function to check update authorization
@@ -723,6 +766,71 @@ HTML_TEMPLATE = '''
             }
         }
     });
+
+    // Add sorting functionality
+    let currentSort = {
+        column: null,
+        direction: 'asc'
+    };
+
+    function sortTable(column) {
+        const table = document.querySelector('table');
+        const tbody = table.querySelector('tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        
+        // Update sort direction
+        if (currentSort.column === column) {
+            currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSort.column = column;
+            currentSort.direction = 'asc';
+        }
+
+        // Sort the rows
+        rows.sort((a, b) => {
+            let aValue = a.querySelector(`td:nth-child(${column + 1})`).textContent.trim();
+            let bValue = b.querySelector(`td:nth-child(${column + 1})`).textContent.trim();
+
+            // Special handling for Location column (column 5)
+            if (column === 4) {
+                // Extract line number for sorting
+                aValue = aValue.match(/Line: (\d+)/)?.[1] || '';
+                bValue = bValue.match(/Line: (\d+)/)?.[1] || '';
+            }
+
+            // Handle numeric values
+            if (!isNaN(aValue) && !isNaN(bValue)) {
+                aValue = parseFloat(aValue);
+                bValue = parseFloat(bValue);
+            }
+
+            // Compare values
+            if (aValue < bValue) return currentSort.direction === 'asc' ? -1 : 1;
+            if (aValue > bValue) return currentSort.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+
+        // Update sort indicators
+        const headers = table.querySelectorAll('th');
+        headers.forEach((header, index) => {
+            header.classList.remove('sort-asc', 'sort-desc');
+            if (index === column) {
+                header.classList.add(currentSort.direction === 'asc' ? 'sort-asc' : 'sort-desc');
+            }
+        });
+
+        // Reorder rows in the table
+        rows.forEach(row => tbody.appendChild(row));
+    }
+
+    // Add click handlers to table headers
+    document.addEventListener('DOMContentLoaded', function() {
+        const headers = document.querySelectorAll('th');
+        headers.forEach((header, index) => {
+            header.style.cursor = 'pointer';
+            header.addEventListener('click', () => sortTable(index));
+        });
+    });
     </script>
 </head>
 <body>
@@ -796,11 +904,11 @@ HTML_TEMPLATE = '''
     <table>
                         <thead>
       <tr>
-        <th>Associate Name</th>
-        <th>Associate ID</th>
-        <th>Receiver's Name</th>
-        <th>Form Status</th>
-                                <th>Location</th>
+        <th title="Click to sort by Associate Name">Associate Name</th>
+        <th title="Click to sort by Associate ID">Associate ID</th>
+        <th title="Click to sort by Receiver's Name">Receiver's Name</th>
+        <th title="Click to sort by Form Status">Form Status</th>
+        <th title="Click to sort by Location (Line Number)">Location</th>
       </tr>
                         </thead>
                         <tbody>
