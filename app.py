@@ -7,6 +7,8 @@ import re
 import pandas as pd
 import io
 from dotenv import load_dotenv
+from io import BytesIO
+import base64
 
 # Load environment variables
 load_dotenv()
@@ -42,38 +44,73 @@ class DataError(Exception):
     pass
 
 def load_data(file_path):
-    """Load and validate data from the specified file."""
+    """Load and validate data from the specified Excel file."""
+    data = []
+    invalid_rows = []
     try:
         if not os.path.exists(file_path):
             raise DataError(f"Data file not found: {file_path}")
-        
-        data = []
-        with open(file_path, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-            if len(lines) < 2:  # Need at least header + 1 data row
-                raise DataError("Data file is empty or missing header")
-            
-            for line_num, line in enumerate(lines[1:], 2):  # skip header
-                try:
-                    parts = line.strip().split('\t')
-                    if len(parts) < 6:
-                        logger.warning(f"Invalid data format at line {line_num}")
-                        continue
-                    
-                    record = {
-                        "associate_name": parts[0].strip(),
-                        "associate_id": parts[1].strip(),
-                        "receiver_name": parts[2].strip(),
-                        "form_status": parts[3].strip(),
-                        "line_no": parts[4].strip(),
-                        "set_no": parts[5].strip()
-                    }
-                    data.append(record)
-                except Exception as e:
-                    logger.error(f"Error processing line {line_num}: {str(e)}")
+        logger.info(f"Attempting to load Excel file: {file_path}")
+        # Read Excel file
+        df = pd.read_excel(file_path)
+        logger.info(f"Excel file loaded. Found {len(df)} rows and columns: {list(df.columns)}")
+        # Map column names (handle different possible column names)
+        column_mapping = {
+            'associate_name': ['ASSOCIATE NAME', 'associate_name', 'Associate Name', 'Name', 'NAME'],
+            'associate_id': ['ASSOCIATE ID', 'associate_id', 'Associate ID', 'ID', 'id'],
+            'receiver_name': ["RECEIVER'S NAME", 'receiver_name', 'Receiver Name', 'RECEIVER NAME', 'Receiver', 'RECEIVER'],
+            'form_status': ['FORM STATUS', 'form_status', 'Form Status', 'Status', 'STATUS'],
+            'line_no': ['LINE NO.', 'line_no', 'Line No', 'LINE NO', 'Line', 'LINE'],
+            'set_no': ['SET-NO.OF FORM', 'set_no', 'Set No', 'SET NO', 'Set', 'SET']
+        }
+        # Find matching columns
+        found_columns = {}
+        for required_col, possible_names in column_mapping.items():
+            found = False
+            for possible_name in possible_names:
+                if possible_name in df.columns:
+                    found_columns[required_col] = possible_name
+                    found = True
+                    logger.info(f"Found column '{possible_name}' for '{required_col}'")
+                    break
+            if not found:
+                raise DataError(f"Could not find column for '{required_col}'. Available columns: {list(df.columns)}")
+        # Rename columns to standard names
+        df = df.rename(columns={found_columns[k]: k for k in found_columns})
+        logger.info(f"Renamed columns to: {list(df.columns)}")
+        # Clean and validate data
+        df = df.fillna("")  # Replace NaN with empty string
+        # Convert all columns to string and strip whitespace
+        for col in df.columns:
+            df[col] = df[col].astype(str).str.strip()
+            logger.info(f"Column '{col}' sample values: {df[col].head(3).tolist()}")
+        # Process each row
+        for index, row in df.iterrows():
+            try:
+                # Validate SET-NO.OF FORM format (should be SNF/number)
+                if not str(row['set_no']).upper().startswith('SNF/'):
+                    invalid_rows.append((index + 2, f"Invalid SET-NO format: {row['set_no']}"))
                     continue
-        
-        logger.info(f"Successfully loaded {len(data)} records")
+                record = {
+                    "associate_name": row['associate_name'],
+                    "associate_id": row['associate_id'],
+                    "receiver_name": row['receiver_name'],
+                    "form_status": row['form_status'],
+                    "line_no": row['line_no'],
+                    "set_no": row['set_no']
+                }
+                data.append(record)
+            except Exception as e:
+                logger.error(f"Error processing row {index + 2}: {str(e)}")
+                invalid_rows.append((index + 2, str(e)))
+                continue
+        if invalid_rows:
+            logger.warning("Sample of invalid rows (up to 5):")
+            for row_num, error in invalid_rows[:5]:
+                logger.warning(f"Row {row_num}: {error}")
+        logger.info(f"Successfully loaded {len(data)} records from Excel")
+        if len(data) > 0:
+            logger.info(f"Sample record: {data[0]}")
         return data
     except Exception as e:
         logger.error(f"Failed to load data: {str(e)}")
@@ -81,7 +118,7 @@ def load_data(file_path):
 
 # Load data once when app starts
 try:
-    data = load_data('data.txt')
+    data = load_data('data.xlsx')
 except DataError as e:
     logger.error(f"Critical error loading data: {str(e)}")
     data = []
@@ -96,7 +133,7 @@ HTML_TEMPLATE = '''
     <title>Professional Records Search</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
+<style>
         :root {
             --primary-color: #2563eb;
             --primary-hover: #1d4ed8;
@@ -586,7 +623,60 @@ HTML_TEMPLATE = '''
                 min-width: 800px;
             }
         }
-    </style>
+</style>
+    <script>
+    // Function to update data from Excel
+    function updateDataFromExcel() {
+        var input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.xlsx,.xls';
+        input.style.display = 'none';
+        
+        input.onchange = function(e) {
+            var file = e.target.files[0];
+            if (!file) { return; }
+            
+            var reader = new FileReader();
+            reader.onload = function(event) {
+                var buffer = event.target.result;
+                fetch('/update_data', {
+                    method: 'POST',
+                    body: buffer
+                })
+                .then(function(response) { return response.json(); })
+                .then(function(result) {
+                    if (result.success) {
+                        alert('Data updated successfully!');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + result.message);
+                    }
+                })
+                .catch(function(error) {
+                    alert('Error updating data: ' + error);
+                });
+            };
+            reader.readAsArrayBuffer(file);
+            document.body.removeChild(input);
+        };
+        
+        document.body.appendChild(input);
+        input.click();
+    }
+    
+    // Show update button when Alt+U is pressed
+    document.addEventListener('keydown', function(e) {
+        if (e.altKey && e.key === 'u') {
+            var btn = document.getElementById('updateDataBtn');
+            if (btn) {
+                btn.style.display = 'inline-block';
+                setTimeout(function() {
+                    btn.style.display = 'none';
+                }, 5000); // Hide after 5 seconds
+            }
+        }
+    });
+    </script>
 </head>
 <body>
     <div class="container">
@@ -635,7 +725,7 @@ HTML_TEMPLATE = '''
             </form>
         </div>
 
-        {% if results is not none %}
+{% if results is not none %}
             <div class="results-header">
                 <div class="results-count">
                     <i class="fas fa-list"></i>
@@ -651,24 +741,24 @@ HTML_TEMPLATE = '''
                 </div>
             </div>
             
-            {% if results %}
+  {% if results %}
                 <div class="table-container">
-                    <table>
+    <table>
                         <thead>
-                            <tr>
-                                <th>Associate Name</th>
-                                <th>Associate ID</th>
-                                <th>Receiver's Name</th>
-                                <th>Form Status</th>
+      <tr>
+        <th>Associate Name</th>
+        <th>Associate ID</th>
+        <th>Receiver's Name</th>
+        <th>Form Status</th>
                                 <th>Location</th>
-                            </tr>
+      </tr>
                         </thead>
                         <tbody>
-                            {% for rec in results %}
+      {% for rec in results %}
                                 <tr class="{% if loop.index is divisibleby 2 %}highlight-row{% endif %}">
-                                    <td>{{ rec.associate_name }}</td>
-                                    <td>{{ rec.associate_id }}</td>
-                                    <td>{{ rec.receiver_name }}</td>
+        <td>{{ rec.associate_name }}</td>
+        <td>{{ rec.associate_id }}</td>
+        <td>{{ rec.receiver_name }}</td>
                                     <td>
                                         <span class="status-badge status-{{ rec.form_status.lower() }}">
                                             {{ rec.form_status }}
@@ -684,19 +774,21 @@ HTML_TEMPLATE = '''
                                             </span>
                                         </div>
                                     </td>
-                                </tr>
-                            {% endfor %}
+      </tr>
+      {% endfor %}
                         </tbody>
-                    </table>
+    </table>
                 </div>
-            {% else %}
+  {% else %}
                 <div class="no-results">
                     <i class="fas fa-search"></i>
-                    <p>No matching records found.</p>
+    <p>No matching records found.</p>
                 </div>
-            {% endif %}
-        {% endif %}
+  {% endif %}
+{% endif %}
     </div>
+    <!-- Add this button somewhere in your UI, maybe near the search box -->
+    <button onclick="updateDataFromExcel()" style="display: none;" id="updateDataBtn">Update Data</button>
 </body>
 </html>
 '''
@@ -738,7 +830,11 @@ def search():
         search_term = request.args.get('search', '').strip()
         search_type = request.args.get('search_type', 'all')  # Default to 'all'
         error = None
-        
+        # Log the search attempt and current data state
+        logger.info(f"Search attempt - Term: '{search_term}', Type: {search_type}")
+        logger.info(f"Total records in memory: {len(data)}")
+        if len(data) > 0:
+            logger.info(f"Sample record for search: {data[0]}")
         # If search term starts with SNF/, force search_type to 'set_no'
         if search_term.upper().startswith('SNF/'):
             search_type = 'set_no'
@@ -750,45 +846,74 @@ def search():
                                             search_term='',
                                             search_type=search_type,
                                             error=validation_error)
-        
         results = None
         if search_term:
             search_lower = search_term.lower()
             results = []
-            
+            # Log total records being searched
+            logger.info(f"Searching through {len(data)} records")
             for rec in data:
                 match = False
-                if search_type == 'all':
-                    # Special handling for SNF/ format
-                    if search_term.upper().startswith('SNF/'):
-                        match = search_term.upper() == rec['set_no'].upper()
-                    else:
-                        # Regular search in all fields - now case-insensitive
-                        match = (search_lower in str(rec['associate_name']).lower() or
-                                search_lower in str(rec['associate_id']).lower() or
-                                search_lower in str(rec['receiver_name']).lower() or
-                                search_lower in str(rec['set_no']).lower() or
-                                search_term == str(rec['line_no']))
-                elif search_type == 'associate_name':
-                    match = search_lower in str(rec['associate_name']).lower()
-                elif search_type == 'associate_id':
-                    match = search_lower in str(rec['associate_id']).lower()
-                elif search_type == 'receiver_name':
-                    match = search_lower in str(rec['receiver_name']).lower()
-                elif search_type == 'set_no':
-                    # Always use exact match for set_no searches
-                    match = search_term.upper() == str(rec['set_no']).upper()
-                elif search_type == 'line_no':
-                    match = search_term == str(rec['line_no'])
-                
-                if match:
-                    results.append(rec)
-            
+                try:
+                    # Normalize record values and log for debugging
+                    associate_name = str(rec['associate_name']).lower().strip()
+                    associate_id = str(rec['associate_id']).lower().strip()
+                    receiver_name = str(rec['receiver_name']).lower().strip()
+                    set_no = str(rec['set_no']).upper().strip()
+                    line_no = str(rec['line_no']).strip()
+                    # Log first few records being searched
+                    if len(results) < 3:
+                        logger.info(f"Searching record - Name: {associate_name}, ID: {associate_id}, Set: {set_no}")
+                    if search_type == 'all':
+                        # Special handling for SNF/ format
+                        if search_term.upper().startswith('SNF/'):
+                            match = search_term.upper() == set_no
+                        else:
+                            # Regular search in all fields with better partial matching
+                            search_parts = search_lower.split()
+                            if len(search_parts) > 1:
+                                # For multi-word searches, check if all words are present
+                                match = all(part in associate_name or 
+                                          part in associate_id or 
+                                          part in receiver_name or 
+                                          part in set_no.lower() or 
+                                          part == line_no.lower() 
+                                          for part in search_parts)
+                            else:
+                                # Single word search
+                                match = (search_lower in associate_name or
+                                       search_lower in associate_id or
+                                       search_lower in receiver_name or
+                                       search_lower in set_no.lower() or
+                                       search_term == line_no)
+                    elif search_type == 'associate_name':
+                        match = search_lower in associate_name
+                    elif search_type == 'associate_id':
+                        match = search_lower in associate_id
+                    elif search_type == 'receiver_name':
+                        match = search_lower in receiver_name
+                    elif search_type == 'set_no':
+                        match = search_term.upper() == set_no
+                    elif search_type == 'line_no':
+                        match = search_term == line_no
+                    if match:
+                        results.append(rec)
+                        # Log successful match
+                        logger.info(f"Match found - Name: {rec['associate_name']}, ID: {rec['associate_id']}, Set: {rec['set_no']}")
+                except Exception as e:
+                    logger.error(f"Error processing record during search: {str(e)}")
+                    continue
             logger.info(f"Search for '{search_term}' in {search_type} returned {len(results)} results")
-        
+            # If no results found, log potential matches for debugging
+            if not results and search_type == 'all':
+                potential_matches = []
+                for rec in data:
+                    if any(search_lower in str(v).lower() for v in rec.values()):
+                        potential_matches.append(f"{rec['associate_name']} ({rec['set_no']})")
+                if potential_matches:
+                    logger.info(f"Potential matches found but not included: {', '.join(potential_matches[:5])}")
         # Add current date and time for print header
         print_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
         return render_template_string(HTML_TEMPLATE, 
                                     results=results, 
                                     search_term=search_term,
@@ -824,7 +949,7 @@ def export_excel():
                 results.append(rec)
             elif (not is_set_no_search and not is_line_no_search and
                   (search_lower in rec['associate_name'].lower() or
-                   search_lower in rec['associate_id'].lower() or
+               search_lower in rec['associate_id'].lower() or
                    search_lower in rec['receiver_name'].lower() or
                    search_lower in rec['set_no'].lower())):
                 results.append(rec)
@@ -892,6 +1017,29 @@ def internal_error(error):
                                 search_term='',
                                 search_type='all',
                                 error="An internal server error occurred. Please try again later."), 500
+
+@app.route('/update_data', methods=['POST'])
+def update_data():
+    """Hidden route to update data from Excel"""
+    try:
+        # Get Excel data from request
+        excel_data = request.get_data()
+        if not excel_data:
+            return jsonify({"success": False, "message": "No data received"})
+        
+        # Save the uploaded Excel file
+        with open('data.xlsx', 'wb') as f:
+            f.write(excel_data)
+        
+        # Reload data in memory
+        global data
+        data = load_data('data.xlsx')
+        logger.info(f"Data reloaded successfully. Total records: {len(data)}")
+        
+        return jsonify({"success": True, "message": f"Data updated successfully. Processed {len(data)} records."})
+    except Exception as e:
+        logger.error(f"Error in update_data: {str(e)}")
+        return jsonify({"success": False, "message": str(e)})
 
 if __name__ == '__main__':
     # Get port from environment variable or use default

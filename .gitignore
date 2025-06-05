@@ -37,6 +37,7 @@ ENV/
 # Logs
 logs/
 *.log
+*.log.*
 
 # Local development
 instance/
@@ -46,6 +47,14 @@ instance/
 *.db
 *.sqlite3
 
-# Excel files (except for any that need to be tracked)
-# *.xlsx
-# *.xls
+# Excel files
+~$*.xlsx  # Temporary Excel files
+*.xls     # Old Excel format
+# Keep data.xlsx as it's needed for the application
+!data.xlsx
+
+# Text files
+*.txt
+# Keep specific text files if needed
+!requirements.txt
+!README.md
