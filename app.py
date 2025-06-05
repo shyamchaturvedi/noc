@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template_string, jsonify, send_file
+from flask import Flask, request, render_template_string, jsonify, send_file, session
 import logging
 from logging.handlers import RotatingFileHandler
 import os
@@ -37,7 +37,8 @@ app.config.update(
     SESSION_COOKIE_SECURE=True,
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax',
-    PERMANENT_SESSION_LIFETIME=1800  # 30 minutes
+    PERMANENT_SESSION_LIFETIME=1800,  # 30 minutes
+    UPDATE_PASSWORD=os.getenv('UPDATE_PASSWORD', 'NOCTEAM@132')  # Password for update authorization
 )
 
 class DataError(Exception):
@@ -626,8 +627,39 @@ HTML_TEMPLATE = '''
         }
 </style>
     <script>
+    // Function to check update authorization
+    function checkUpdateAuth() {
+        var password = prompt("Please enter the update password:");
+        if (!password) return false;
+        
+        return fetch('/check_update_auth', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ password: password })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                return true;
+            } else {
+                alert(data.message || "Authentication failed");
+                return false;
+            }
+        })
+        .catch(error => {
+            alert("Error during authentication");
+            return false;
+        });
+    }
+
     // Function to update data from Excel
-    function updateDataFromExcel() {
+    async function updateDataFromExcel() {
+        // First check authorization
+        const isAuthorized = await checkUpdateAuth();
+        if (!isAuthorized) return;
+        
         var input = document.createElement('input');
         input.type = 'file';
         input.accept = '.xlsx,.xls';
@@ -636,6 +668,12 @@ HTML_TEMPLATE = '''
         input.onchange = function(e) {
             var file = e.target.files[0];
             if (!file) { return; }
+            
+            // Show loading state
+            var btn = document.getElementById('updateDataBtn');
+            var originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating...';
+            btn.disabled = true;
             
             var reader = new FileReader();
             reader.onload = function(event) {
@@ -651,10 +689,16 @@ HTML_TEMPLATE = '''
                         location.reload();
                     } else {
                         alert('Error: ' + result.message);
+                        // Reset button state
+                        btn.innerHTML = originalText;
+                        btn.disabled = false;
                     }
                 })
                 .catch(function(error) {
                     alert('Error updating data: ' + error);
+                    // Reset button state
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
                 });
             };
             reader.readAsArrayBuffer(file);
@@ -666,14 +710,16 @@ HTML_TEMPLATE = '''
     }
     
     // Show update button when Alt+U is pressed
-    document.addEventListener('keydown', function(e) {
-        if (e.altKey && e.key === 'u') {
+    document.addEventListener('keydown', async function(e) {
+        if (e.altKey && e.key.toLowerCase() === 'u') {
+            e.preventDefault(); // Prevent default browser behavior
             var btn = document.getElementById('updateDataBtn');
             if (btn) {
-                btn.style.display = 'inline-block';
-                setTimeout(function() {
-                    btn.style.display = 'none';
-                }, 5000); // Hide after 5 seconds
+                // First check authorization
+                const isAuthorized = await checkUpdateAuth();
+                if (isAuthorized) {
+                    btn.click(); // Trigger the update function
+                }
             }
         }
     });
@@ -690,6 +736,9 @@ HTML_TEMPLATE = '''
                 <a href="/export" class="btn btn-success">
                     <i class="fas fa-file-excel"></i> Export to Excel
                 </a>
+                <button onclick="updateDataFromExcel()" class="btn btn-primary" id="updateDataBtn" title="Press Alt+U to update data">
+                    <i class="fas fa-sync"></i> Update Data
+                </button>
             </div>
         </div>
         
@@ -788,8 +837,6 @@ HTML_TEMPLATE = '''
   {% endif %}
 {% endif %}
     </div>
-    <!-- Add this button somewhere in your UI, maybe near the search box -->
-    <button onclick="updateDataFromExcel()" style="display: none;" id="updateDataBtn">Update Data</button>
 </body>
 </html>
 '''
@@ -1019,14 +1066,34 @@ def internal_error(error):
                                 search_type='all',
                                 error="An internal server error occurred. Please try again later."), 500
 
+@app.route('/check_update_auth', methods=['POST'])
+def check_update_auth():
+    """Check if the provided password is correct for updates"""
+    try:
+        password = request.json.get('password')
+        if password == app.config['UPDATE_PASSWORD']:
+            session['update_authorized'] = True
+            return jsonify({"success": True})
+        return jsonify({"success": False, "message": "Incorrect password"})
+    except Exception as e:
+        logger.error(f"Error in check_update_auth: {str(e)}")
+        return jsonify({"success": False, "message": "Authentication failed"})
+
 @app.route('/update_data', methods=['POST'])
 def update_data():
     """Hidden route to update data from Excel and update GitHub"""
     try:
+        # Check if user is authorized
+        if not session.get('update_authorized'):
+            return jsonify({"success": False, "message": "Unauthorized access"})
+            
         # Get Excel data from request
         excel_data = request.get_data()
         if not excel_data:
             return jsonify({"success": False, "message": "No data received"})
+        
+        # Clear the authorization after use
+        session.pop('update_authorized', None)
         
         # Save the uploaded Excel file
         with open('data.xlsx', 'wb') as f:
