@@ -9,6 +9,7 @@ import io
 from dotenv import load_dotenv
 from io import BytesIO
 import base64
+import subprocess
 
 # Load environment variables
 load_dotenv()
@@ -1020,7 +1021,7 @@ def internal_error(error):
 
 @app.route('/update_data', methods=['POST'])
 def update_data():
-    """Hidden route to update data from Excel"""
+    """Hidden route to update data from Excel and update GitHub"""
     try:
         # Get Excel data from request
         excel_data = request.get_data()
@@ -1036,7 +1037,30 @@ def update_data():
         data = load_data('data.xlsx')
         logger.info(f"Data reloaded successfully. Total records: {len(data)}")
         
-        return jsonify({"success": True, "message": f"Data updated successfully. Processed {len(data)} records."})
+        # Update GitHub
+        try:
+            # Add the updated Excel file to git
+            subprocess.run(['git', 'add', 'data.xlsx'], check=True)
+            
+            # Commit the changes
+            commit_message = f"Update data.xlsx - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            subprocess.run(['git', 'commit', '-m', commit_message], check=True)
+            
+            # Push to GitHub
+            subprocess.run(['git', 'push', 'origin', 'main'], check=True)
+            
+            logger.info("Successfully updated data.xlsx in GitHub")
+            return jsonify({
+                "success": True, 
+                "message": f"Data updated successfully. Processed {len(data)} records and updated GitHub."
+            })
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Git operation failed: {str(e)}")
+            return jsonify({
+                "success": True,
+                "message": f"Data updated locally but GitHub update failed: {str(e)}"
+            })
+            
     except Exception as e:
         logger.error(f"Error in update_data: {str(e)}")
         return jsonify({"success": False, "message": str(e)})
