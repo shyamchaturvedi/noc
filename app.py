@@ -947,11 +947,30 @@ def search():
                     if match:
                         results.append(rec)
                         # Log successful match
-                        logger.info(f"Match found - Name: {rec['associate_name']}, ID: {rec['associate_id']}, Set: {rec['set_no']}")
+                        logger.info(f"Match found - Name: {rec['associate_name']}, ID: {rec['associate_id']}, Line: {rec['line_no']}, Set: {rec['set_no']}")
                 except Exception as e:
                     logger.error(f"Error processing record during search: {str(e)}")
                     continue
-            logger.info(f"Search for '{search_term}' in {search_type} returned {len(results)} results")
+            # Sort results by line number in ascending order
+            if results:
+                # Log the line numbers before sorting
+                logger.info("Line numbers before sorting: " + ", ".join(str(r['line_no']) for r in results))
+                
+                def get_line_number(record):
+                    try:
+                        # Remove any non-digit characters and convert to integer
+                        line_no = ''.join(filter(str.isdigit, str(record['line_no'])))
+                        return int(line_no) if line_no else float('inf')
+                    except (ValueError, TypeError):
+                        logger.warning(f"Invalid line number format: {record['line_no']}")
+                        return float('inf')
+                
+                # Sort using the new function
+                results.sort(key=get_line_number)
+                
+                # Log the line numbers after sorting
+                logger.info("Line numbers after sorting: " + ", ".join(str(r['line_no']) for r in results))
+                
             # If no results found, log potential matches for debugging
             if not results and search_type == 'all':
                 potential_matches = []
