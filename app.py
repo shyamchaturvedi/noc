@@ -418,57 +418,30 @@ HTML_TEMPLATE = '''
             color: var(--text-secondary);
         }
 
+        /* Notice and QR code positioning */
+        .table-container::after {
+            content: "⚠️ Agar koi form nikalta hai aur galat number par wapas rakhta hai to uski zimmedari us vyakti ki hogi.";
+            display: block;
+            margin-top: 1cm;
+            margin-bottom: 1cm;
+            padding: 0.5cm;
+            border: 1px solid #000;
+            font-size: 9pt;
+            line-height: 1.4;
+            white-space: pre-line;
+            text-align: center;
+            page-break-inside: avoid;
+        }
+
+        /* QR code container styles */
+        .qr-code-container {
+            display: none;  /* Hidden by default */
+        }
+
         @media print {
             @page {
                 size: A4 portrait;
                 margin: 0.5cm;
-            }
-
-            /* QR code styles for print */
-            .qr-code-container {
-                display: block !important;  /* Force display in print */
-                text-align: center;
-                position: fixed;
-                bottom: 2cm;
-                left: 0;
-                right: 0;
-                z-index: 9999;
-            }
-
-            .qr-code-container img {
-                width: 150px;
-                height: 150px;
-                margin: 0 auto;
-                display: block;
-            }
-
-            .qr-code-container p {
-                font-size: 9pt;
-                margin-top: 0.3cm;
-                color: #000;  /* Ensure text is visible */
-                font-weight: 500;
-            }
-
-            /* Add space at bottom of content for QR code */
-            .container {
-                padding-bottom: 12cm;
-            }
-
-            /* Hide QR code in screen view */
-            @media screen {
-                .qr-code-container {
-                    display: none;
-                }
-            }
-
-            /* Ensure QR code appears on last page */
-            .table-container {
-                margin-bottom: 8cm;  /* Add space for QR code */
-            }
-
-            /* Ensure notice appears before QR code */
-            .table-container::after {
-                margin-bottom: 2cm;
             }
 
             body {
@@ -600,18 +573,33 @@ HTML_TEMPLATE = '''
                 content: "S: ";
             }
 
-            /* Add notice section after table */
-            .table-container::after {
-                content: "⚠️ Agar koi form nikalta hai aur galat number par wapas rakhta hai to uski zimmedari us vyakti ki hogi.";
-                display: block;
-                margin-top: 1cm;
-                padding: 0.5cm;
-                border: 1px solid #000;
-                font-size: 9pt;
-                line-height: 1.4;
-                white-space: pre-line;
+            /* QR code styles for print */
+            .qr-code-container {
+                display: block !important;
                 text-align: center;
+                position: relative;
+                margin-top: 1cm;  /* Space after notice */
                 page-break-inside: avoid;
+                page-break-before: avoid;
+            }
+
+            .qr-code-container img {
+                width: 150px;
+                height: 150px;
+                margin: 0 auto;
+                display: block;
+            }
+
+            .qr-code-container p {
+                font-size: 9pt;
+                margin-top: 0.3cm;
+                color: #000;
+                font-weight: 500;
+            }
+
+            /* Ensure QR code appears after notice */
+            .table-container + .qr-code-container {
+                margin-top: 1cm;
             }
 
             /* Add page number */
@@ -620,6 +608,13 @@ HTML_TEMPLATE = '''
                     content: counter(page);
                     font-size: 8pt;
                 }
+            }
+        }
+
+        /* Hide QR code in screen view */
+        @media screen {
+            .qr-code-container {
+                display: none !important;
             }
         }
 
@@ -980,9 +975,10 @@ HTML_TEMPLATE = '''
                         </tbody>
     </table>
                 </div>
+                <!-- QR code container after table but before no-results -->
                 <div class="qr-code-container">
-                    <img src="data:image/png;base64,{{ qr_code }}" alt="Search URL QR Code" style="display: inline-block;">
-                    <p style="margin-top: 8px; font-weight: bold;">Scan QR Code to view this search result online</p>
+                    <img src="data:image/png;base64,{{ qr_code }}" alt="Search URL QR Code">
+                    <p>Scan QR Code to view this search result online</p>
                 </div>
   {% else %}
                 <div class="no-results">
