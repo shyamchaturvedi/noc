@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from io import BytesIO
 import base64
 import subprocess
+import qrcode
 
 # Load environment variables
 load_dotenv()
@@ -423,6 +424,53 @@ HTML_TEMPLATE = '''
                 margin: 0.5cm;
             }
 
+            /* QR code styles for print */
+            .qr-code-container {
+                display: block !important;  /* Force display in print */
+                text-align: center;
+                position: fixed;
+                bottom: 2cm;
+                left: 0;
+                right: 0;
+                z-index: 9999;
+            }
+
+            .qr-code-container img {
+                width: 150px;
+                height: 150px;
+                margin: 0 auto;
+                display: block;
+            }
+
+            .qr-code-container p {
+                font-size: 9pt;
+                margin-top: 0.3cm;
+                color: #000;  /* Ensure text is visible */
+                font-weight: 500;
+            }
+
+            /* Add space at bottom of content for QR code */
+            .container {
+                padding-bottom: 12cm;
+            }
+
+            /* Hide QR code in screen view */
+            @media screen {
+                .qr-code-container {
+                    display: none;
+                }
+            }
+
+            /* Ensure QR code appears on last page */
+            .table-container {
+                margin-bottom: 8cm;  /* Add space for QR code */
+            }
+
+            /* Ensure notice appears before QR code */
+            .table-container::after {
+                margin-bottom: 2cm;
+            }
+
             body {
                 background-color: white;
                 width: 100%;
@@ -554,7 +602,7 @@ HTML_TEMPLATE = '''
 
             /* Add notice section after table */
             .table-container::after {
-                content: "⚠️ Agar koi form nikalta hai aur galat number par wapas rakhta hai to uski zimmedari us vyakti ki hogi.\A\A 🛑 Unauthorized access ya mixing strictly prohibited.\A\A 📌 By Order: SHREYA GROUP | NOC Management Team";
+                content: "⚠️ Agar koi form nikalta hai aur galat number par wapas rakhta hai to uski zimmedari us vyakti ki hogi.";
                 display: block;
                 margin-top: 1cm;
                 padding: 0.5cm;
@@ -564,11 +612,6 @@ HTML_TEMPLATE = '''
                 white-space: pre-line;
                 text-align: center;
                 page-break-inside: avoid;
-            }
-
-            /* Ensure notice stays with table */
-            .table-container {
-                page-break-after: avoid;
             }
 
             /* Add page number */
@@ -937,6 +980,10 @@ HTML_TEMPLATE = '''
                         </tbody>
     </table>
                 </div>
+                <div class="qr-code-container">
+                    <img src="data:image/png;base64,{{ qr_code }}" alt="Search URL QR Code" style="display: inline-block;">
+                    <p style="margin-top: 8px; font-weight: bold;">Scan QR Code to view this search result online</p>
+                </div>
   {% else %}
                 <div class="no-results">
                     <i class="fas fa-search"></i>
@@ -986,6 +1033,26 @@ def search():
         search_term = request.args.get('search', '').strip()
         search_type = request.args.get('search_type', 'all')  # Default to 'all'
         error = None
+        
+        # Generate QR code for current URL
+        current_url = request.url
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_H,  # Higher error correction
+            box_size=12,  # Larger box size for better visibility
+            border=2,  # Smaller border
+        )
+        qr.add_data(current_url)
+        qr.make(fit=True)
+        
+        # Create QR code image with higher contrast
+        qr_img = qr.make_image(fill_color="black", back_color="white")
+        
+        # Convert QR code to base64 for embedding in HTML
+        buffered = BytesIO()
+        qr_img.save(buffered, format="PNG", quality=100)  # Maximum quality
+        qr_base64 = base64.b64encode(buffered.getvalue()).decode()
+        
         # Log the search attempt and current data state
         logger.info(f"Search attempt - Term: '{search_term}', Type: {search_type}")
         logger.info(f"Total records in memory: {len(data)}")
@@ -1094,7 +1161,8 @@ def search():
                                     search_term=search_term,
                                     search_type=search_type,
                                     error=error,
-                                    print_date=print_date)
+                                    print_date=print_date,
+                                    qr_code=qr_base64)
     except Exception as e:
         logger.error(f"Error processing search request: {str(e)}")
         return render_template_string(HTML_TEMPLATE,
